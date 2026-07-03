@@ -239,6 +239,20 @@ function initUi() {
   store.subscribe(onStoreChange);
 }
 
+// ---------- display mode ----------
+
+/** Ask the host for fullscreen — a request, not a command; hosts may decline. */
+async function requestFullscreen() {
+  try {
+    const ctx = app.getHostContext?.();
+    if (ctx?.displayMode === 'fullscreen') return;
+    if (ctx?.availableDisplayModes && !ctx.availableDisplayModes.includes('fullscreen')) return;
+    await app.requestDisplayMode({ mode: 'fullscreen' });
+  } catch {
+    // host without display-mode support — stay inline
+  }
+}
+
 // ---------- host theme ----------
 
 function applyHostTheme(ctx) {
@@ -257,6 +271,7 @@ app.ontoolresult = (params) => {
   if (!sc) return;
   if (sc.polyarchy === 'opened' && sc.focusId) {
     $('welcome').hidden = true;
+    requestFullscreen(); // a graph wants room — hosts that support it expand
     mergeDelta(sc);
     const focusNode = store.getNode(sc.focusId);
     if (focusNode) {
