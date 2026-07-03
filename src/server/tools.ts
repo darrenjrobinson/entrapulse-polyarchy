@@ -214,8 +214,8 @@ export function registerTools(
     'get-auth-status',
     {
       description:
-        'Current auth mode, signed-in account, and decoded token scopes/roles — use to diagnose 401/403s ' +
-        'and missing consent.',
+        'Current auth mode, signed-in account, client app id, decoded token scopes/roles, and token expiry ' +
+        '(expiresOn + tokenExpiresInMinutes; renewal is silent) — use to diagnose 401/403s and missing consent.',
       inputSchema: {},
       _meta: uiMeta(['model', 'app'], false)
     },

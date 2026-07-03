@@ -289,7 +289,12 @@ export class AuthManager {
       account: claims?.upn ?? claims?.preferred_username ?? claims?.app_displayname ?? null,
       scopes: claims?.scp ? String(claims.scp).split(' ') : [],
       roles: Array.isArray(claims?.roles) ? claims.roles : [],
-      expiresOn: claims?.exp ? new Date(claims.exp * 1000).toISOString() : null
+      expiresOn: claims?.exp ? new Date(claims.exp * 1000).toISOString() : null,
+      // access-token lifetime only — the server renews silently from the OS
+      // token cache, so hitting 0 does not sign the user out
+      tokenExpiresInMinutes: claims?.exp
+        ? Math.max(0, Math.round((claims.exp * 1000 - Date.now()) / 60_000))
+        : null
     };
   }
 }
