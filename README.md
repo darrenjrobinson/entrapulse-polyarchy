@@ -54,10 +54,17 @@ Light and dark theme follow your MCP client.
 }
 ```
 
-That's it for most tenants — **no app registration needed**. With no configuration the
-server signs you in interactively (system browser) using Microsoft's first-party
-"Microsoft Graph Command Line Tools" public client, which is already present in most
-tenants. Sign-in happens on the first tool call — and then never again:
+That's it for most tenants — **no app registration needed**. Be aware of what that
+means: with no configuration the server signs you in through **Microsoft's first-party
+"Microsoft Graph Command Line Tools" public client**
+(client ID `14d82eec-204b-4c2f-b7e8-296a70dab67e`) — the same well-known app the Graph
+PowerShell/CLI tooling uses. It exists in every tenant and already has broad delegated
+consent in many. Hardened environments commonly block or restrict this app (Conditional
+Access, consent policies, or app management restrictions) — if that's your tenant, use
+[your own app registration](#hardened-tenants-bring-your-own-app-registration) instead;
+everything else works identically.
+
+Sign-in happens on the first tool call — and then never again:
 
 - Tokens persist in your **OS keychain** (DPAPI/Keychain/libsecret).
 - The signed-in account is remembered in `~/.entrapulse-polyarchy/auth-record.json`,
@@ -92,11 +99,49 @@ persistence; `POLYARCHY_AUTH_RECORD=<path>` relocates the persisted sign-in reco
 | `RoleManagement.Read.Directory` | directory roles |
 | `Application.Read.All` | app assignments |
 
-The default first-party client typically has broad delegated consent already. If your
-org restricts it, register your own app (public client, redirect `http://localhost:3000`)
-with the scopes above and set `CLIENT_ID`/`TENANT_ID`. Missing consent shows up as a
-clear 403 message naming the scope — ask your assistant to run `get-auth-status` to see
-exactly what your token contains.
+The default first-party client typically has broad delegated consent already. Missing
+consent shows up as a clear 403 message naming the scope — ask your assistant to run
+`get-auth-status` to see exactly which app registration, scopes and account your token
+contains.
+
+Scopes and directory roles are separate gates: the token must always carry the scopes
+above (an admin role can't substitute for them), while on the user side plain member
+default permissions cover everything this app reads — no admin role required. Only
+tenants that restrict default user read access (or guest users) need a role that
+includes directory read, for which **Directory Readers** is the least-privileged fit.
+
+### Hardened tenants: bring your own app registration
+
+If the Graph Command Line Tools app is blocked, unconsented, or you simply want an
+app you control (own Conditional Access targeting, own consent trail), point the server
+at your own registration — supported in both interactive and device-code modes:
+
+1. **Entra admin center → App registrations → New registration** — single tenant is fine.
+2. **Authentication → Add a platform → Mobile and desktop applications** — add redirect
+   URI `http://localhost:3000` (or your own; match it with `REDIRECT_URI`), and enable
+   **Allow public client flows** if you want device-code sign-in.
+3. **API permissions → Microsoft Graph → Delegated** — add the four scopes from the
+   table above, then **Grant admin consent**.
+4. Configure the server with your IDs:
+
+```json
+{
+  "mcpServers": {
+    "entrapulse-polyarchy": {
+      "command": "npx",
+      "args": ["-y", "entrapulse-polyarchy"],
+      "env": {
+        "TENANT_ID": "<your-tenant-guid>",
+        "CLIENT_ID": "<your-app-registration-client-id>"
+      }
+    }
+  }
+}
+```
+
+Setting `TENANT_ID` alone (without `CLIENT_ID`) is also useful on its own: it pins
+sign-in to your tenant instead of the `common` endpoint, which multi-tenant users and
+guest accounts often want regardless of which client app is used.
 
 ## Attribute pivots
 

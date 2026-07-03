@@ -249,7 +249,7 @@ function applyHostTheme(ctx) {
 
 // ---------- MCP App bootstrap ----------
 
-const app = new App({ name: 'entrapulse-polyarchy-app', version: '0.1.8' });
+const app = new App({ name: 'entrapulse-polyarchy-app', version: '0.1.9' });
 bridge.setApp(app);
 
 app.ontoolresult = (params) => {

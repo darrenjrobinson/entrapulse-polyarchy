@@ -283,6 +283,8 @@ export class AuthManager {
       mode: this.mode,
       signedIn: !!this.lastToken,
       appOnly: this.isAppOnly,
+      // which app registration this session runs under (default: Graph CLI Tools)
+      clientAppId: claims?.appid ?? process.env.CLIENT_ID ?? GRAPH_CLI_CLIENT_ID,
       tenantId: claims?.tid ?? null,
       account: claims?.upn ?? claims?.preferred_username ?? claims?.app_displayname ?? null,
       scopes: claims?.scp ? String(claims.scp).split(' ') : [],
