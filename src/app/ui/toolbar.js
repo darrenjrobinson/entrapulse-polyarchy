@@ -84,7 +84,7 @@ export function initToolbar({ onViewChange, onAttrChange, onReset }) {
   for (const [path, label] of COMMON_ATTRIBUTES) ensureOption(path, label);
   const custom = document.createElement('option');
   custom.value = CUSTOM;
-  custom.textContent = 'Custom attribute…';
+  custom.textContent = 'Other attributes…';
   attrSelect.appendChild(custom);
   attrSelect.value = currentAttr;
 

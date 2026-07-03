@@ -151,7 +151,7 @@ guest accounts often want regardless of which client app is used.
 
 The Attributes view groups people around shared values. The toolbar picker offers the
 everyday pivots (Department, Job title, Company, Office, City, State, Employee type),
-plus **Custom attribute…** which opens a type-ahead over the full Graph user-attribute
+plus **Other attributes…** which opens a type-ahead over the full Graph user-attribute
 catalog — all fifteen `onPremisesExtensionAttributes`, `employeeOrgData/costCenter`,
 `onPremisesSamAccountName`, `employeeId` and ~50 more. Matching is forgiving (`ext9`
 finds `extensionAttribute9`), free text is accepted for anything uncatalogued, and
