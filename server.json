@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.darrenjrobinson/entrapulse-polyarchy",
+  "description": "Interactive Entra ID identity relationship visualization — the 2003 polyarchy, live as an MCP App",
+  "repository": {
+    "url": "https://github.com/darrenjrobinson/entrapulse-polyarchy",
+    "source": "github"
+  },
+  "version": "0.1.8",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "entrapulse-polyarchy",
+      "version": "0.1.8",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

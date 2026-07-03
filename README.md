@@ -2,6 +2,10 @@
 
 **An interactive Microsoft Entra ID identity relationship visualization, served as an MCP App.**
 
+[![npm](https://img.shields.io/npm/v/entrapulse-polyarchy)](https://www.npmjs.com/package/entrapulse-polyarchy)
+[![npm downloads](https://img.shields.io/npm/dm/entrapulse-polyarchy)](https://www.npmjs.com/package/entrapulse-polyarchy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 In 2003 Microsoft demoed *PolyArchy Server* — a web visual over identity data showing
 intersecting relationship hierarchies, where clicking a datapoint flipped the whole view
 to that context. It never shipped. This is it, finally real: a live D3 force-graph over
