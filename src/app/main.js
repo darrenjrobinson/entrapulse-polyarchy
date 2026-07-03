@@ -241,15 +241,30 @@ function initUi() {
 
 // ---------- display mode ----------
 
-/** Ask the host for fullscreen — a request, not a command; hosts may decline. */
-async function requestFullscreen() {
+const INLINE_HEIGHT = 820; // a force graph needs room even when stuck inline
+
+/**
+ * Ask the host for fullscreen; if declined or unsupported, ask for a tall
+ * inline frame instead. Both are requests — hosts are free to ignore them.
+ */
+async function claimSpace() {
+  let mode;
   try {
     const ctx = app.getHostContext?.();
-    if (ctx?.displayMode === 'fullscreen') return;
-    if (ctx?.availableDisplayModes && !ctx.availableDisplayModes.includes('fullscreen')) return;
-    await app.requestDisplayMode({ mode: 'fullscreen' });
+    mode = ctx?.displayMode ?? 'inline';
+    if (mode !== 'fullscreen' &&
+        (!ctx?.availableDisplayModes || ctx.availableDisplayModes.includes('fullscreen'))) {
+      mode = (await app.requestDisplayMode({ mode: 'fullscreen' })).mode;
+    }
   } catch {
-    // host without display-mode support — stay inline
+    // host without display-mode support
+  }
+  if (mode !== 'fullscreen') {
+    try {
+      app.sendSizeChanged({ height: INLINE_HEIGHT });
+    } catch {
+      // inline at host-default size it is
+    }
   }
 }
 
@@ -271,7 +286,7 @@ app.ontoolresult = (params) => {
   if (!sc) return;
   if (sc.polyarchy === 'opened' && sc.focusId) {
     $('welcome').hidden = true;
-    requestFullscreen(); // a graph wants room — hosts that support it expand
+    claimSpace(); // fullscreen where supported, a tall inline frame otherwise
     mergeDelta(sc);
     const focusNode = store.getNode(sc.focusId);
     if (focusNode) {
