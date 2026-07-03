@@ -25,7 +25,11 @@ export const GRAPH_SCOPE = 'https://graph.microsoft.com/.default';
 // registration for delegated sign-in (the Lokka zero-setup pattern).
 const GRAPH_CLI_CLIENT_ID = '14d82eec-204b-4c2f-b7e8-296a70dab67e';
 const DEFAULT_TENANT = 'common';
-const DEFAULT_REDIRECT_URI = 'http://localhost:3000';
+// Interactive sign-in listens on a RANDOM loopback port — @azure/identity does
+// not forward redirectUri to MSAL's interactive flow, so app registrations
+// must carry a portless http://localhost redirect (Entra ignores the port on
+// localhost per RFC 8252). REDIRECT_URI is kept for forward compatibility only.
+const DEFAULT_REDIRECT_URI = 'http://localhost';
 const CACHE_NAME = 'entrapulse-polyarchy';
 
 export type AuthMode = 'interactive' | 'device_code' | 'client_credentials' | 'client_provided_token';

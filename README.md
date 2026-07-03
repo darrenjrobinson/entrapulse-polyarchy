@@ -81,7 +81,7 @@ Sign-in happens on the first tool call — and then never again:
 
 | Mode | Configure | Notes |
 |---|---|---|
-| **Interactive** (default) | nothing — or `TENANT_ID`, `CLIENT_ID`, `REDIRECT_URI` to use your own app | System browser sign-in; delegated permissions; `/me` is the default focus |
+| **Interactive** (default) | nothing — or `TENANT_ID` + `CLIENT_ID` to use your own app | System browser sign-in (random loopback port — register `http://localhost` portless); delegated permissions; `/me` is the default focus |
 | **Device code** | `USE_DEVICE_CODE=true` | Headless/SSH — code printed to the server log |
 | **App-only** | `TENANT_ID` + `CLIENT_ID` + `CLIENT_SECRET` | Application permissions; no `/me`, so always pass a person to `visualize-identity` |
 | **Client-provided token** | `USE_CLIENT_TOKEN=true` (+ optional `ACCESS_TOKEN`) | The MCP client supplies/refreshes a Graph bearer token via the `set-access-token` tool — seamless SSO for hosts like EntraPulse that already hold one |
@@ -118,8 +118,12 @@ at your own registration — supported in both interactive and device-code modes
 
 1. **Entra admin center → App registrations → New registration** — single tenant is fine.
 2. **Authentication → Add a platform → Mobile and desktop applications** — add redirect
-   URI `http://localhost:3000` (or your own; match it with `REDIRECT_URI`), and enable
-   **Allow public client flows** if you want device-code sign-in.
+   URI **`http://localhost`** (no port!), and enable **Allow public client flows** if you
+   want device-code sign-in. The port matters: interactive sign-in listens on a **random
+   loopback port** each time (e.g. `http://localhost:51106`), and Entra only ignores the
+   port when the registered redirect is the portless `http://localhost`. Registering a
+   fixed port like `:3000`, or reusing an app that only has web redirects (Graph
+   Explorer, for instance), fails with a reply-URL mismatch.
 3. **API permissions → Microsoft Graph → Delegated** — add the four scopes from the
    table above, then **Grant admin consent**.
 4. Configure the server with your IDs:
