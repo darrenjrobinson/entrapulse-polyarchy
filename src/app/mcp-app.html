@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EntraPulse Polyarchy</title>
+</head>
+<body>
+  <div id="app">
+    <header id="toolbar">
+      <div class="brand">
+        <span class="brand-mark">◈</span>
+        <span class="brand-name">EntraPulse Polyarchy</span>
+      </div>
+      <nav id="view-tabs" aria-label="Views">
+        <button class="tab active" data-view="org">Org</button>
+        <button class="tab" data-view="attributes">Attributes</button>
+        <button class="tab" data-view="groups">Groups</button>
+        <button class="tab" data-view="access">Access</button>
+      </nav>
+      <div id="attr-picker" hidden>
+        <select id="attr-select" title="Pivot attribute"></select>
+        <div id="attr-box" hidden>
+          <input id="attr-input" type="text" title="Custom attribute"
+                 placeholder="Type an attribute…" autocomplete="off" spellcheck="false" />
+          <ul id="attr-results" hidden></ul>
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button id="reset-btn" class="ghost" title="Clear the canvas — cached identity data is kept">Reset</button>
+        <div id="search-box">
+          <input id="search-input" type="search" placeholder="Search people…" autocomplete="off" spellcheck="false" />
+          <ul id="search-results" hidden></ul>
+        </div>
+      </div>
+    </header>
+
+    <main id="stage">
+      <div id="canvas"></div>
+
+      <aside id="panel" hidden>
+        <button id="panel-close" title="Close" aria-label="Close panel">×</button>
+        <div id="panel-content"></div>
+      </aside>
+
+      <div id="legend"></div>
+
+      <div id="welcome">
+        <div class="welcome-card">
+          <h1>◈ EntraPulse Polyarchy</h1>
+          <p id="welcome-msg">Waiting for the host to deliver identity data…</p>
+        </div>
+      </div>
+    </main>
+
+    <footer id="statusbar">
+      <span id="stat-nodes">0 nodes</span>
+      <span id="stat-edges">0 edges</span>
+      <span id="stat-api">0 tool calls</span>
+      <span id="stat-msg" class="stat-msg"></span>
+    </footer>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
