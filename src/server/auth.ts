@@ -193,7 +193,19 @@ export class AuthManager {
     const tenantId = env.TENANT_ID || DEFAULT_TENANT;
     const clientId = env.CLIENT_ID || GRAPH_CLI_CLIENT_ID;
     const cache = await tokenCacheOptions();
-    const record = cache ? await loadAuthRecord() : undefined;
+    let record = cache ? await loadAuthRecord() : undefined;
+    // A stored sign-in must not override explicit tenant/client config — the
+    // record steers silent auth to ITS account's tenant, so a mismatched one
+    // would silently ignore TENANT_ID/CLIENT_ID. Discard and sign in fresh.
+    if (record &&
+        (record.clientId !== clientId ||
+         (tenantId !== DEFAULT_TENANT && record.tenantId !== tenantId))) {
+      authLog(
+        `stored sign-in (${record.username} tenant=${record.tenantId} client=${record.clientId}) ` +
+        `does not match configured tenant=${tenantId} client=${clientId} — discarding, fresh sign-in required`
+      );
+      record = undefined;
+    }
     authLog(
       `building ${kind} credential: tenant=${tenantId} client=${clientId} ` +
       `cache=${cache ? 'on' : 'OFF'} record=${record ? record.username : 'NONE'}`
