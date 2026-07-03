@@ -164,9 +164,9 @@ filter.
 
 | Tool | Purpose |
 |---|---|
-| `visualize-identity` | Open the polyarchy focused on you, or `{search: "name"}` / `{userId}` |
+| `visualize-identity` | Open the polyarchy focused on you, or `{search: "name"}` / `{userId}`. Ambiguous names don't guess: the tool returns the candidates (with object ids) so the assistant can ask which one you meant, then re-call with `userId`. A GUID passed as `search` is treated as an object id directly |
 | `polyarchy-expand` | Relationships for one node as a nodes/edges delta (org/groups/access/attributes; group/role members; attribute cohorts — `attr` accepts nested paths) |
-| `polyarchy-search` | Find people by name/UPN |
+| `polyarchy-search` | Find people by name/UPN — returns each match with UPN, title/department and object id |
 | `set-access-token` / `get-auth-status` | Token passthrough + auth diagnostics |
 
 (`get-photo` and `get-manager` also exist but are visible only to the app UI, not the model.)

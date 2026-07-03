@@ -25,6 +25,32 @@ function fail(err: any) {
   };
 }
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The single hit whose displayName or UPN equals the term (case-insensitive), else null. */
+function exactMatch(hits: any[], term: string) {
+  const t = term.toLowerCase();
+  const exact = hits.filter(
+    u => u.displayName?.toLowerCase() === t || u.userPrincipalName?.toLowerCase() === t
+  );
+  return exact.length === 1 ? exact[0] : null;
+}
+
+function candidateFields(u: any) {
+  const { id, displayName, userPrincipalName, jobTitle, department } = u;
+  return { id, displayName, userPrincipalName, jobTitle, department };
+}
+
+/** One text line per user — ids/UPNs must live in the text block, not just
+ *  structuredContent, because not every MCP client shows the model the latter. */
+function userLines(users: any[]) {
+  return users
+    .map(candidateFields)
+    .map(c => `- ${c.displayName} — ${c.userPrincipalName} — ` +
+      `${[c.jobTitle, c.department].filter(Boolean).join(', ') || 'no title'} — ${c.id}`)
+    .join('\n');
+}
+
 export function registerTools(
   server: McpServer,
   auth: AuthManager,
@@ -44,7 +70,10 @@ export function registerTools(
         'Call when the user asks to visualize, explore or map identity relationships, or says ' +
         '"open the polyarchy" / "show me the polyarchy around <name>". ' +
         'With no arguments it opens focused on the signed-in user (delegated modes only — ' +
-        'in app-only mode pass search or userId). Once opened the UI is interactive; ' +
+        'in app-only mode pass search or userId). If search matches several people the tool ' +
+        'returns the candidates instead of opening — ask the user which one they mean and call ' +
+        'again with that userId (or use polyarchy-search first for names you suspect are common). ' +
+        'Once opened the UI is interactive; ' +
         'no further action is needed unless the user asks for something new.',
       inputSchema: {
         search: z.string().optional().describe('Name or UPN to find and focus'),
@@ -55,10 +84,19 @@ export function registerTools(
     async ({ search, userId }: { search?: string; userId?: string }) => {
       try {
         let focus = userId ?? null;
+        if (!focus && search && GUID.test(search)) focus = search;
         if (!focus && search) {
           const hits = await graph.searchUsers(search);
           if (!hits.length) return fail(new Error(`No user matched "${search}".`));
-          focus = hits[0].id;
+          const pick = hits.length === 1 ? hits[0] : exactMatch(hits, search);
+          if (!pick) {
+            return ok(
+              `${hits.length} users match "${search}". Ask the user which one they mean, then ` +
+              `call visualize-identity again with that userId.\n${userLines(hits)}`,
+              { polyarchy: 'not-opened', ambiguous: true, candidates: hits.map(candidateFields) }
+            );
+          }
+          focus = pick.id;
         }
         if (!focus) {
           if (auth.isAppOnly) {
@@ -142,7 +180,10 @@ export function registerTools(
     async ({ term }: { term: string }) => {
       try {
         const users = await graph.searchUsers(term);
-        return ok(`${users.length} match(es) for "${term}"`, { users });
+        const text = users.length
+          ? `${users.length} match(es) for "${term}":\n${userLines(users)}`
+          : `No users matched "${term}".`;
+        return ok(text, { users });
       } catch (err) {
         return fail(err);
       }
