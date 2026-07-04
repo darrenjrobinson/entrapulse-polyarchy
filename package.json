@@ -1,6 +1,6 @@
 {
   "name": "entrapulse-polyarchy",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "mcpName": "io.github.darrenjrobinson/entrapulse-polyarchy",
   "type": "module",
   "description": "EntraPulse Polyarchy — an interactive Microsoft Entra ID identity relationship visualization served as an MCP App. The polyarchy Microsoft demoed in 2003 and never shipped, rendered live inside your MCP client.",
