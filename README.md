@@ -6,6 +6,8 @@
 [![npm downloads](https://img.shields.io/npm/dm/entrapulse-polyarchy)](https://www.npmjs.com/package/entrapulse-polyarchy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+![EntraPulse Polyarchy — live identity relationship graph rendered inside an MCP client](https://raw.githubusercontent.com/darrenjrobinson/entrapulse-polyarchy/main/entrapulse-polyarchy-mcp.jpg)
+
 In 2003 Microsoft demoed *PolyArchy Server* — a web visual over identity data showing
 intersecting relationship hierarchies, where clicking a datapoint flipped the whole view
 to that context. It never shipped. This is it, finally real: a live D3 force-graph over
