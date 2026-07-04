@@ -23,6 +23,10 @@ Ask your assistant *"show me the identity polyarchy around Rebecca"* and explore
   `onPremisesExtensionAttributes/extensionAttribute9`
 - **Access** — directory roles and app assignments
 
+Prefer data over pictures? `polyarchy-report` returns the same relationships as
+structured JSON — manager chain, group memberships with type and assigned/dynamic,
+roles, app assignments — for the assistant to reason over, no UI required.
+
 ## Exploring
 
 - **Click** a node to open its profile panel (photo, attributes, manager chain link).
@@ -83,7 +87,7 @@ Sign-in happens on the first tool call — and then never again:
 |---|---|---|
 | **Interactive** (default) | nothing — or `TENANT_ID` + `CLIENT_ID` to use your own app | System browser sign-in (random loopback port — register `http://localhost` portless); delegated permissions; `/me` is the default focus |
 | **Device code** | `USE_DEVICE_CODE=true` | Headless/SSH — code printed to the server log |
-| **App-only** | `TENANT_ID` + `CLIENT_ID` + `CLIENT_SECRET` | Application permissions; no `/me`, so always pass a person to `visualize-identity` |
+| **App-only** | `TENANT_ID` + `CLIENT_ID` + `CLIENT_SECRET` | Application permissions; no `/me`, so always pass a person to `visualize-identity` / `polyarchy-report` |
 | **Client-provided token** | `USE_CLIENT_TOKEN=true` (+ optional `ACCESS_TOKEN`) | The MCP client supplies/refreshes a Graph bearer token via the `set-access-token` tool — seamless SSO for hosts like EntraPulse that already hold one |
 
 Other env vars: `POLYARCHY_DISABLE_TOKEN_CACHE=true` disables OS-keychain token
@@ -165,8 +169,9 @@ filter.
 | Tool | Purpose |
 |---|---|
 | `visualize-identity` | Open the polyarchy focused on you, or `{search: "name"}` / `{userId}`. Ambiguous names don't guess: the tool returns the candidates (with object ids) so the assistant can ask which one you meant, then re-call with `userId`. A GUID passed as `search` is treated as an object id directly |
-| `polyarchy-expand` | Relationships for one node as a nodes/edges delta (org/groups/access/attributes; group/role members; attribute cohorts — `attr` accepts nested paths) |
+| `polyarchy-expand` | Relationships for one node as a nodes/edges delta (org/groups/access/attributes; group/role members; attribute cohorts — `attr` accepts nested paths). The full delta — every node with object id, and group type / assigned-vs-dynamic for groups — is returned to the caller; it does not redraw an already-open canvas (the UI fetches its own data on interaction) |
 | `polyarchy-search` | Find people by name/UPN — returns each match with UPN, title/department and object id |
+| `polyarchy-report` | Structured JSON report of a user's relationships, no UI needed: full manager chain + direct reports, group memberships (with group type and assigned/dynamic), directory roles, app assignments, core attributes — pick `dimensions` or take `all` |
 | `set-access-token` / `get-auth-status` | Token passthrough + auth diagnostics |
 
 (`get-photo` and `get-manager` also exist but are visible only to the app UI, not the model.)
@@ -183,6 +188,17 @@ Test interactively with the [MCPJam inspector](https://github.com/MCPJam/inspect
 MCP Apps-capable host pointed at `node build/server/index.js`. The UI is one
 self-contained HTML file (D3 inlined) satisfying the MCP Apps default CSP — the iframe
 makes zero network calls; all Graph traffic flows through the server via `tools/call`.
+
+### Releasing
+
+```bash
+npm version patch    # bumps package.json + server.json (synced automatically) and tags
+git push --follow-tags
+```
+
+The tag triggers `.github/workflows/release.yml`, which publishes to npm (Trusted
+Publishing — OIDC, provenance attested, no tokens) and then to the MCP registry
+(`mcp-publisher login github-oidc`). No secrets are stored in the repo or in Actions.
 
 ## Origin story
 

@@ -1,0 +1,61 @@
+name: Release
+
+# Publishes to npm (Trusted Publishing / OIDC — no token, no OTP) and then to the
+# MCP registry (github-oidc — no secret). Triggered by pushing a v* tag, which
+# `npm version patch` creates locally; release with:
+#   npm version patch && git push --follow-tags
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC for both npm trusted publishing and mcp-publisher
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "lts/*"
+          registry-url: "https://registry.npmjs.org" # required for trusted publishing
+
+      - name: Update npm # trusted publishing needs npm >= 11.5.1
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test # live-Graph tests self-skip in CI (no tenant sign-in); schema tests run
+        run: npm test
+
+      - name: Check tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag v$TAG_VERSION does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Publish to npm
+        run: npm publish --access public
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry # after npm publish — the registry validates the npm version exists
+        run: ./mcp-publisher publish

@@ -170,7 +170,7 @@ export class GraphClient {
 
   async getMemberships(id: string) {
     const items = await this.getAll(
-      `/users/${id}/memberOf?$select=id,displayName,description,groupTypes,mailEnabled,securityEnabled`
+      `/users/${id}/memberOf?$select=id,displayName,description,groupTypes,mailEnabled,securityEnabled,membershipRule`
     );
     return {
       groups: items.filter((o) => o['@odata.type'] === '#microsoft.graph.group'),
@@ -318,6 +318,81 @@ export class GraphClient {
     const delta = await this.expandUserOrg(userId);
     return { ...delta, focusId: userId };
   }
+
+  // ---------- structured report (polyarchy-report — semantic JSON, not nodes/edges) ----------
+
+  async report(userId: string, dimensions: string[]): Promise<Record<string, any>> {
+    const want = (d: string) => dimensions.includes('all') || dimensions.includes(d);
+    const user = await this.getUser(userId);
+    const report: Record<string, any> = { user: reportUser(user) };
+
+    const tasks: Promise<void>[] = [];
+    if (want('org')) {
+      tasks.push((async () => {
+        const [chain, reports] = await Promise.all([
+          this.getManagerChain(userId),
+          this.getDirectReports(userId)
+        ]);
+        report.org = {
+          managerChain: chain.map(reportUser), // immediate manager first, root last
+          directReports: reports.map(reportUser)
+        };
+      })());
+    }
+    if (want('groups') || want('roles')) {
+      tasks.push((async () => {
+        const { groups, roles } = await this.getMemberships(userId);
+        if (want('groups')) report.groups = groups.map(reportGroup);
+        if (want('roles')) {
+          report.roles = roles.map((r) => ({
+            id: r.id, displayName: r.displayName, description: r.description
+          }));
+        }
+      })());
+    }
+    if (want('applications')) {
+      tasks.push((async () => {
+        const assignments = await this.getAppRoleAssignments(userId);
+        report.applications = assignments.map((a: any) => ({
+          id: a.resourceId, displayName: a.resourceDisplayName
+        }));
+      })());
+    }
+    await Promise.all(tasks);
+
+    if (want('attributes')) {
+      const { mail, jobTitle, department, companyName, city, state, officeLocation,
+        employeeType, userType, accountEnabled } = user;
+      report.attributes = { mail, jobTitle, department, companyName, city, state,
+        officeLocation, employeeType, userType, accountEnabled };
+    }
+    return report;
+  }
+}
+
+function reportUser(u: any) {
+  const { id, displayName, userPrincipalName, jobTitle, department } = u;
+  return { id, displayName, userPrincipalName, jobTitle, department };
+}
+
+export function reportGroup(g: any) {
+  const dynamic = (g.groupTypes ?? []).includes('DynamicMembership');
+  return {
+    id: g.id,
+    displayName: g.displayName,
+    description: g.description,
+    type: groupKind(g),
+    membership: dynamic ? 'dynamic' : 'assigned',
+    ...(dynamic && g.membershipRule ? { membershipRule: g.membershipRule } : {})
+  };
+}
+
+function groupKind(g: any): string {
+  if ((g.groupTypes ?? []).includes('Unified')) return 'Microsoft 365';
+  if (g.securityEnabled && g.mailEnabled) return 'Mail-enabled security';
+  if (g.securityEnabled) return 'Security';
+  if (g.mailEnabled) return 'Distribution list';
+  return 'Unknown';
 }
 
 /** Errors double as model guidance (the Lokka pattern). */

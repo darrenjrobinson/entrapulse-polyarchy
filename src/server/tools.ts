@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerAppTool } from '@modelcontextprotocol/ext-apps/server';
 import { AuthManager } from './auth.js';
-import { GraphClient, type Delta } from './graph.js';
+import { GraphClient, reportGroup, type Delta } from './graph.js';
 
 export const RESOURCE_URI = 'ui://entrapulse-polyarchy/mcp-app.html';
 
@@ -51,6 +51,55 @@ function userLines(users: any[]) {
     .join('\n');
 }
 
+/** Delta rendered for the text block: full ids/labels, trimmed node payloads. */
+function deltaText(delta: Delta) {
+  const nodes = delta.nodes.map((n) => {
+    const base = { id: n.id, type: n.type, label: n.label };
+    if (n.type === 'user') {
+      const { userPrincipalName, jobTitle, department } = n.data ?? {};
+      return { ...base, userPrincipalName, jobTitle, department };
+    }
+    if (n.type === 'group') {
+      const g = reportGroup(n.data ?? {});
+      return {
+        ...base,
+        description: g.description,
+        groupType: g.type, // Security / Microsoft 365 / Distribution list / Mail-enabled security
+        membership: g.membership,
+        ...(g.membershipRule ? { membershipRule: g.membershipRule } : {})
+      };
+    }
+    return base;
+  });
+  const edges = delta.edges.map(({ source, kind, target }) => ({ source, kind, target }));
+  return `${delta.message}\n\`\`\`json\n${JSON.stringify({ nodes, edges }, null, 2)}\n\`\`\``;
+}
+
+/** Resolve search/userId to an object id. When resolution can't complete (no match,
+ *  ambiguous name) the tool response to return as-is comes back instead. */
+async function resolveUser(
+  graph: GraphClient,
+  toolName: string,
+  search: string | undefined,
+  userId: string | undefined,
+  extra: Record<string, any> = {}
+): Promise<{ id?: string; response?: any }> {
+  if (userId) return { id: userId };
+  if (!search) return {};
+  if (GUID.test(search)) return { id: search };
+  const hits = await graph.searchUsers(search);
+  if (!hits.length) return { response: fail(new Error(`No user matched "${search}".`)) };
+  const pick = hits.length === 1 ? hits[0] : exactMatch(hits, search);
+  if (pick) return { id: pick.id };
+  return {
+    response: ok(
+      `${hits.length} users match "${search}". Ask the user which one they mean, then ` +
+      `call ${toolName} again with that userId.\n${userLines(hits)}`,
+      { ...extra, ambiguous: true, candidates: hits.map(candidateFields) }
+    )
+  };
+}
+
 export function registerTools(
   server: McpServer,
   auth: AuthManager,
@@ -83,21 +132,11 @@ export function registerTools(
     },
     async ({ search, userId }: { search?: string; userId?: string }) => {
       try {
-        let focus = userId ?? null;
-        if (!focus && search && GUID.test(search)) focus = search;
-        if (!focus && search) {
-          const hits = await graph.searchUsers(search);
-          if (!hits.length) return fail(new Error(`No user matched "${search}".`));
-          const pick = hits.length === 1 ? hits[0] : exactMatch(hits, search);
-          if (!pick) {
-            return ok(
-              `${hits.length} users match "${search}". Ask the user which one they mean, then ` +
-              `call visualize-identity again with that userId.\n${userLines(hits)}`,
-              { polyarchy: 'not-opened', ambiguous: true, candidates: hits.map(candidateFields) }
-            );
-          }
-          focus = pick.id;
-        }
+        const resolved = await resolveUser(graph, 'visualize-identity', search, userId, {
+          polyarchy: 'not-opened'
+        });
+        if (resolved.response) return resolved.response;
+        let focus = resolved.id ?? null;
         if (!focus) {
           if (auth.isAppOnly) {
             return fail(new Error(
@@ -129,9 +168,12 @@ export function registerTools(
         'Fetch one node\'s relationships from Microsoft Graph as a nodes/edges delta. ' +
         'Dimensions for a user node: org (manager chain + direct reports), groups (memberships), ' +
         'access (directory roles + app assignments), attributes (pivot hub for attr). ' +
-        'For nodeType group/role, returns members. For nodeType attribute pass attr+value to load the whole cohort.',
+        'For nodeType group/role, returns members. For nodeType attribute pass attr+value to load the whole cohort. ' +
+        'The delta is returned to the caller only — it does not update an open polyarchy canvas ' +
+        '(the UI fetches its own data when the user interacts with it).',
       inputSchema: {
-        nodeId: z.string().optional().describe('Entra object id (users, groups, roles)'),
+        nodeId: z.string().optional().describe('Entra object id (users, groups, roles); a UPN also works for users'),
+        userId: z.string().optional().describe('Alias for nodeId'),
         nodeType: z.enum(['user', 'group', 'role', 'attribute']),
         dimension: z.enum(['org', 'groups', 'access', 'attributes']).optional().default('org'),
         attr: z.string().optional().describe(
@@ -141,27 +183,36 @@ export function registerTools(
       },
       _meta: uiMeta(['model', 'app'], false)
     },
-    async ({ nodeId, nodeType, dimension, attr, value }: any) => {
+    async ({ nodeId, userId, nodeType, dimension, attr, value }: any) => {
       try {
+        let id = nodeId ?? userId;
+        if (nodeType !== 'attribute' && !id) {
+          return fail(new Error(
+            `Expanding a ${nodeType} needs nodeId — its Entra object id ` +
+            '(get one from polyarchy-search, polyarchy-report or an earlier expand).'
+          ));
+        }
+        // A UPN works for user lookups, but delta edges must carry the object id.
+        if (nodeType === 'user' && id && !GUID.test(id)) id = (await graph.getUser(id)).id;
         let delta: Delta;
         if (nodeType === 'attribute') {
           if (!attr || value === undefined) return fail(new Error('attribute expansion needs attr and value'));
           delta = await graph.expandAttributeCohort(attr, value);
         } else if (nodeType === 'group') {
-          delta = await graph.expandGroup(nodeId);
+          delta = await graph.expandGroup(id);
         } else if (nodeType === 'role') {
-          delta = await graph.expandRole(nodeId);
+          delta = await graph.expandRole(id);
         } else if (dimension === 'groups') {
-          delta = await graph.expandUserGroups(nodeId);
+          delta = await graph.expandUserGroups(id);
         } else if (dimension === 'access') {
-          delta = await graph.expandUserAccess(nodeId);
+          delta = await graph.expandUserAccess(id);
         } else if (dimension === 'attributes') {
           if (!attr) return fail(new Error('attributes dimension needs attr'));
-          delta = await graph.expandUserAttribute(nodeId, attr);
+          delta = await graph.expandUserAttribute(id, attr);
         } else {
-          delta = await graph.expandUserOrg(nodeId);
+          delta = await graph.expandUserOrg(id);
         }
-        return ok(delta.message, delta as unknown as Record<string, any>);
+        return ok(deltaText(delta), delta as unknown as Record<string, any>);
       } catch (err) {
         return fail(err);
       }
@@ -184,6 +235,59 @@ export function registerTools(
           ? `${users.length} match(es) for "${term}":\n${userLines(users)}`
           : `No users matched "${term}".`;
         return ok(text, { users });
+      } catch (err) {
+        return fail(err);
+      }
+    }
+  );
+
+  // ---------- structured report (model-facing, works headless) ----------
+
+  registerAppTool(
+    server,
+    'polyarchy-report',
+    {
+      title: 'Identity relationship report',
+      description:
+        "Structured JSON report of one user's identity relationships — no UI needed, works headless. " +
+        'Dimensions: org (full manager chain to the root + direct reports), groups (direct memberships ' +
+        'with group type — Security / Microsoft 365 / Distribution list / Mail-enabled security — and ' +
+        'assigned vs dynamic membership), roles (directory roles), applications (app assignments), ' +
+        'attributes (core profile values), or all (default). ' +
+        'Use when the user wants analysis, a summary or the underlying data — after exploring the ' +
+        'polyarchy visually, or instead of opening it. With no person argument it reports on the ' +
+        'signed-in user (delegated modes only). Ambiguous names return candidates — re-call with userId.',
+      inputSchema: {
+        search: z.string().optional().describe('Name or UPN to find'),
+        userId: z.string().optional().describe('Exact Entra object id'),
+        dimensions: z
+          .array(z.enum(['org', 'groups', 'roles', 'applications', 'attributes', 'all']))
+          .optional()
+          .describe('Relationship categories to include (default: all)')
+      },
+      _meta: uiMeta(['model'], false)
+    },
+    async ({ search, userId, dimensions }: {
+      search?: string; userId?: string; dimensions?: string[];
+    }) => {
+      try {
+        const resolved = await resolveUser(graph, 'polyarchy-report', search, userId);
+        if (resolved.response) return resolved.response;
+        let id = resolved.id ?? null;
+        if (!id) {
+          if (auth.isAppOnly) {
+            return fail(new Error(
+              'App-only auth has no signed-in user — call polyarchy-report with a search or userId argument.'
+            ));
+          }
+          id = (await graph.getMe()).id;
+        }
+        const report = await graph.report(id!, dimensions?.length ? dimensions : ['all']);
+        return ok(
+          `Identity report for ${report.user.displayName} (${report.user.userPrincipalName}):\n` +
+          '```json\n' + JSON.stringify(report, null, 2) + '\n```',
+          report
+        );
       } catch (err) {
         return fail(err);
       }
