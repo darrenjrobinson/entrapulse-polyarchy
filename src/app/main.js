@@ -236,6 +236,7 @@ function initUi() {
     onReset: resetCanvas
   });
   initSearch((user) => loadUserAndFocus(user));
+  initExpandToggle();
   store.subscribe(onStoreChange);
 }
 
@@ -266,6 +267,63 @@ async function claimSpace() {
       // inline at host-default size it is
     }
   }
+  lastDisplayMode = mode ?? lastDisplayMode;
+  syncExpandButton(mode);
+}
+
+// getHostContext().displayMode only updates on host notifications, so it can be
+// stale right after a requestDisplayMode grant — track the mode ourselves.
+let lastDisplayMode;
+
+/** A display-mode flip landed (ours or host-initiated): height, button label, re-centre. */
+function displayModeSettled(mode) {
+  if (!mode || mode === lastDisplayMode) return;
+  lastDisplayMode = mode;
+  syncExpandButton(mode);
+  if (mode !== 'fullscreen') {
+    try {
+      app.sendSizeChanged({ height: INLINE_HEIGHT }); // restore the tall inline frame
+    } catch {
+      // host-default size it is
+    }
+  }
+  // the iframe reshapes only after the host applies the flip — reuse the
+  // open-glide delay so centerOn measures post-resize geometry (it no-ops
+  // safely when nothing is focused yet)
+  setTimeout(() => centerOn(store.getFocusId(), store.snapshot()), 400);
+}
+
+// The fullscreen claim above is one-shot, so once the user minimises there'd be
+// no way back to full canvas from inside the app — this toggle re-requests it
+// (and hands the surface back). Hidden when the host declares fullscreen
+// unavailable or can't switch modes.
+function syncExpandButton(mode) {
+  const btn = $('expand-btn');
+  try {
+    const ctx = app.getHostContext?.();
+    if (ctx?.availableDisplayModes && !ctx.availableDisplayModes.includes('fullscreen')) {
+      btn.hidden = true;
+      return;
+    }
+    const full = (mode ?? ctx?.displayMode) === 'fullscreen';
+    btn.textContent = full ? 'Minimise' : 'Expand';
+    btn.title = full ? 'Return to inline view' : 'Expand to fullscreen';
+  } catch {
+    // host context optional — leave the button as-is
+  }
+}
+
+function initExpandToggle() {
+  $('expand-btn').addEventListener('click', async () => {
+    try {
+      const current = lastDisplayMode ?? app.getHostContext?.()?.displayMode;
+      const target = current === 'fullscreen' ? 'inline' : 'fullscreen';
+      const result = await app.requestDisplayMode({ mode: target });
+      displayModeSettled(result.mode);
+    } catch {
+      $('expand-btn').hidden = true; // host can't switch modes
+    }
+  });
 }
 
 // ---------- host theme ----------
@@ -278,7 +336,14 @@ function applyHostTheme(ctx) {
 
 // ---------- MCP App bootstrap ----------
 
-const app = new App({ name: 'entrapulse-polyarchy-app', version: '0.1.9' });
+// autoResize (default on) measures the document's *intrinsic* height, which for
+// this full-viewport app collapses to toolbar+statusbar and would clobber our
+// explicit INLINE_HEIGHT reports on every fullscreen/inline flip.
+const app = new App(
+  { name: 'entrapulse-polyarchy-app', version: __APP_VERSION__ },
+  undefined,
+  { autoResize: false }
+);
 bridge.setApp(app);
 
 app.ontoolresult = (params) => {
@@ -306,7 +371,15 @@ app.ontoolresult = (params) => {
   }
 };
 
-app.onhostcontextchanged = (params) => applyHostTheme(params?.hostContext ?? params);
+app.onhostcontextchanged = (params) => {
+  // params is a PARTIAL delta (only changed fields), already merged into
+  // getHostContext() before this handler runs — theme must come from the
+  // merged context or a displayMode-only delta would flip light hosts to dark.
+  applyHostTheme(app.getHostContext?.() ?? (params?.hostContext ?? params));
+  const mode = (params?.hostContext ?? params)?.displayMode;
+  if (typeof mode === 'string') displayModeSettled(mode); // host-initiated flips
+  else syncExpandButton(); // availableDisplayModes may still have changed
+};
 
 initUi();
 
@@ -316,6 +389,7 @@ app
     try {
       applyHostTheme(app.getHostContext?.());
     } catch { /* host context optional */ }
+    syncExpandButton();
   })
   .catch((err) => {
     console.error(err);

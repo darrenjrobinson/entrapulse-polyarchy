@@ -39,6 +39,10 @@ roles, app assignments — for the assistant to reason over, no UI required.
   everything fetched this session stays cached, so re-exploring the same people,
   groups or cohorts rebuilds instantly with **zero extra Graph calls**. The status
   bar shows when a neighbourhood was served from cache.
+- **Expand / Minimise** (toolbar) toggles the app between fullscreen and its inline
+  card. The automatic fullscreen claim happens only when a polyarchy opens, so this
+  is the way back to full canvas after minimising in the host. Hidden on hosts
+  without fullscreen support.
 - **Legend** checkboxes filter relationship kinds and object types in place.
 
 The graph accumulates across dimensions: one intersecting polyarchy, not four separate
