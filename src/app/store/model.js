@@ -70,6 +70,11 @@ export function attrValue(data, attr) {
   return attr.split('/').reduce((obj, key) => obj?.[key], data);
 }
 
+/** Pivot presence: false and 0 are real values — only null/undefined/'' are absent. */
+export function hasAttrValue(value) {
+  return value !== undefined && value !== null && value !== '';
+}
+
 export function edge(sourceId, kind, targetId) {
   return {
     id: `${sourceId}|${kind}|${targetId}`,
