@@ -126,7 +126,11 @@ export function render(snapshot) {
     .data(nodes, (d) => d.id)
     .join(
       (enter) => {
-        const g = enter.append('g').attr('class', 'node');
+        const g = enter
+          .append('g')
+          .attr('class', 'node')
+          .attr('tabindex', 0)
+          .attr('role', 'button');
         g.call(dragBehavior());
         // Double-click is detected from two clicks on the same node rather
         // than the native dblclick event — the native event needs both clicks
@@ -143,6 +147,15 @@ export function render(snapshot) {
           }
         });
         g.on('dblclick', (event) => event.stopPropagation());
+        g.on('keydown', (event, d) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault(); // Space must not scroll the host page
+            handlers.onNodeClick?.(d);
+          } else if ((event.key === 'f' || event.key === 'F') && !event.ctrlKey && !event.metaKey) {
+            event.preventDefault();
+            handlers.onNodeDblClick?.(d); // flip context
+          }
+        });
         return g;
       },
       (update) => update,
@@ -150,6 +163,9 @@ export function render(snapshot) {
     )
     .classed('focus', (d) => d.id === focusId)
     .classed('selected', (d) => d.id === snapshot.selectedId)
+    // on the merged selection so it tracks label changes — drawNode rebuilds
+    // children every render but attributes on the <g> survive
+    .attr('aria-label', (d) => `${d.type}: ${d.label}`)
     .call(drawNode, { focusId, maxHop });
 
   // Reheat only on structural change — selection/focus/photo/theme re-renders
