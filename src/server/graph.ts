@@ -85,6 +85,25 @@ const attrSelectField = (attr: string) => attr.split('/')[0];
 const attrValueOf = (obj: any, attr: string) =>
   attr.split('/').reduce((o, k) => o?.[k], obj);
 
+/** Pivot presence: false and 0 are real values — only null/undefined/'' are absent. */
+export const hasAttrValue = (value: any) =>
+  value !== undefined && value !== null && value !== '';
+
+// Graph boolean properties take unquoted OData literals — 'true' quoted is a 400.
+const BOOLEAN_ATTRS = new Set(['accountEnabled', 'onPremisesSyncEnabled']);
+
+/** Serialize a pivot value as an OData $filter literal for the given attr. */
+export function odataLiteral(attr: string, value: string): string {
+  if (BOOLEAN_ATTRS.has(attr)) {
+    const v = String(value).toLowerCase();
+    if (v !== 'true' && v !== 'false') {
+      throw new Error(`${attr} is a boolean attribute — value must be true or false, got "${value}".`);
+    }
+    return v;
+  }
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
 export class GraphClient {
   constructor(private auth: AuthManager) {}
 
@@ -200,7 +219,7 @@ export class GraphClient {
 
   getUsersByAttribute(attr: string, value: string) {
     assertAttrPath(attr);
-    const filter = encodeURIComponent(`${attr} eq '${String(value).replace(/'/g, "''")}'`);
+    const filter = encodeURIComponent(`${attr} eq ${odataLiteral(attr, value)}`);
     // cohort members carry the pivot attribute too, so client-side re-pivots see it
     return this.getAll(
       `/users?$filter=${filter}&$count=true&${SELECT},${attrSelectField(attr)}`,
@@ -276,7 +295,7 @@ export class GraphClient {
     assertAttrPath(attr);
     const user = await this.gfetch(`/users/${userId}?${SELECT},${attrSelectField(attr)}`);
     const value = attrValueOf(user, attr);
-    if (!value) return { nodes: [], edges: [], message: `${user.displayName} has no ${attr}` };
+    if (!hasAttrValue(value)) return { nodes: [], edges: [], message: `${user.displayName} has no ${attr}` };
     const hub = attributeNode(attr, value);
     return {
       nodes: [hub],
