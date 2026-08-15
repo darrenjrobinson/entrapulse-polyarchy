@@ -86,7 +86,10 @@ function expansionKey(node, view) {
 
 async function expandNode(node) {
   const view = getView();
-  if (node.expandedIn?.has(expansionKey(node, view))) {
+  // captured before any await — the pivot can change while the fetch is in
+  // flight, and the delta must be cached under the attr it was requested for
+  const key = expansionKey(node, view);
+  if (node.expandedIn?.has(key)) {
     // fetched earlier this session — rebuild from cache, no server round-trip;
     // a user's attribute restore may only bring back this pivot's hub edges
     const hubPrefix = node.type === 'user' && view === 'attributes'
@@ -119,7 +122,7 @@ async function expandNode(node) {
     const delta = await bridge.expand(args);
     mergeDelta(delta);
     node.expanded = true;
-    (node.expandedIn ??= new Set()).add(expansionKey(node, view));
+    (node.expandedIn ??= new Set()).add(key);
     store.computeHops(store.getFocusId());
     store.notify();
     setStatus(delta.message ?? 'Expanded');
