@@ -1,7 +1,7 @@
 import { searchUsers } from '../bridge.js';
 
 let timer = null;
-let lastTerm = '';
+let generation = 0; // bumped on every input/pick — responses tied to older ones are stale
 
 export function initSearch(onPick) {
   const input = document.getElementById('search-input');
@@ -11,22 +11,24 @@ export function initSearch(onPick) {
 
   input.addEventListener('input', () => {
     clearTimeout(timer);
+    const gen = ++generation; // even the short-term early-return invalidates in-flight requests
     const term = input.value.trim();
     if (term.length < 2) {
       results.hidden = true;
       return;
     }
     timer = setTimeout(async () => {
-      lastTerm = term;
       try {
         const users = await searchUsers(term);
-        if (term !== lastTerm) return; // stale response
+        if (gen !== generation) return; // stale response
         renderResults(results, users, (u) => {
+          generation++; // a pick invalidates anything still in flight
           results.hidden = true;
           input.value = '';
           onPick(u);
         });
       } catch {
+        if (gen !== generation) return; // stale failure — newer input owns the box
         renderResults(results, [], () => {});
       }
     }, 300);
