@@ -2,7 +2,7 @@ import './styles.css';
 import { App } from '@modelcontextprotocol/ext-apps';
 import * as bridge from './bridge.js';
 import * as store from './store/store.js';
-import { attributeNode, attrValue, edge } from './store/model.js';
+import { attributeNode, attrValue, edge, hasAttrValue } from './store/model.js';
 import { initCanvas, render, centerOn } from './viz/canvas.js';
 import { renderLegend } from './viz/legend.js';
 import { initPanel, showPanel, hidePanel } from './ui/panel.js';
@@ -79,11 +79,23 @@ function expansionKinds(node, view) {
   }[view] ?? ['reportsTo'];
 }
 
+/** Cache key for expandedIn — a user's attribute expansion is per pivot attr, not just per view. */
+function expansionKey(node, view) {
+  return node.type === 'user' && view === 'attributes' ? `attributes:${getPivotAttr()}` : view;
+}
+
 async function expandNode(node) {
   const view = getView();
-  if (node.expandedIn?.has(view)) {
-    // fetched earlier this session — rebuild from cache, no server round-trip
-    const restored = store.restoreExpansion(node.id, expansionKinds(node, view));
+  if (node.expandedIn?.has(expansionKey(node, view))) {
+    // fetched earlier this session — rebuild from cache, no server round-trip;
+    // a user's attribute restore may only bring back this pivot's hub edges
+    const hubPrefix = node.type === 'user' && view === 'attributes'
+      ? `attr:${getPivotAttr()}:` : null;
+    const restored = store.restoreExpansion(
+      node.id,
+      expansionKinds(node, view),
+      hubPrefix ? (e, src, tgt) => src.startsWith(hubPrefix) || tgt.startsWith(hubPrefix) : undefined
+    );
     store.computeHops(store.getFocusId());
     store.notify();
     if (restored) setStatus(`${node.label}: ${restored} relationship(s) from cache`);
@@ -107,7 +119,7 @@ async function expandNode(node) {
     const delta = await bridge.expand(args);
     mergeDelta(delta);
     node.expanded = true;
-    (node.expandedIn ??= new Set()).add(view);
+    (node.expandedIn ??= new Set()).add(expansionKey(node, view));
     store.computeHops(store.getFocusId());
     store.notify();
     setStatus(delta.message ?? 'Expanded');
@@ -131,7 +143,7 @@ function buildAttributeHubs() {
   let hubs = 0;
   for (const n of store.snapshot().nodes) {
     const value = n.type === 'user' ? attrValue(n.data, attr) : undefined;
-    if (!value) continue;
+    if (!hasAttrValue(value)) continue;
     const hub = store.upsertNode({
       hop: Infinity, expanded: false, ...attributeNode(attr, value)
     });
@@ -203,7 +215,7 @@ function onViewChange(view) {
     setStatus(hubs ? `Pivoted on ${getPivotAttr()}` : `No ${getPivotAttr()} values loaded yet`);
   }
   const focus = store.getNode(store.getFocusId());
-  if (focus?.type === 'user' && !focus.expandedIn?.has(view)) expandNode(focus);
+  if (focus?.type === 'user' && !focus.expandedIn?.has(expansionKey(focus, view))) expandNode(focus);
 }
 
 function initUi() {

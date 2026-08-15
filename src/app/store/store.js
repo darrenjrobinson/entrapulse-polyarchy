@@ -100,9 +100,11 @@ export function resetCanvas() {
 
 /**
  * Re-display a node's cached relationships of the given edge kinds without a
- * server call. Returns how many edges were brought back onto the canvas.
+ * server call. An optional edgeFilter(edge, sourceId, targetId) narrows the
+ * restore further (e.g. to a single pivot attribute's hub edges). Returns how
+ * many edges were brought back onto the canvas.
  */
-export function restoreExpansion(nodeId, kinds) {
+export function restoreExpansion(nodeId, kinds, edgeFilter) {
   const node = nodeCache.get(nodeId);
   if (!node) return 0;
   displayNode(node);
@@ -110,8 +112,9 @@ export function restoreExpansion(nodeId, kinds) {
   for (const edgeId of cacheIncident.get(nodeId) ?? []) {
     const e = edgeCache.get(edgeId);
     if (!kinds.includes(e.kind)) continue;
-    if (edges.has(e.id)) continue;
     const [src, tgt] = endpointsOf(e);
+    if (edgeFilter && !edgeFilter(e, src, tgt)) continue;
+    if (edges.has(e.id)) continue;
     displayNode(nodeCache.get(src));
     displayNode(nodeCache.get(tgt));
     displayEdge(e);
