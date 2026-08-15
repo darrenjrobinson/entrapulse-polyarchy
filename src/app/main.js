@@ -252,6 +252,7 @@ function initUi() {
   });
   initSearch((user) => loadUserAndFocus(user));
   initExpandToggle();
+  $('stat-credit').textContent = `Darren Robinson · v${__APP_VERSION__}`;
   store.subscribe(onStoreChange);
 }
 

@@ -448,6 +448,8 @@ button.ghost:hover { background: #4f8ef71a; }
 .stat-msg { margin-left: auto; }
 .stat-msg.error { color: var(--danger); }
 
+#stat-credit { white-space: nowrap; }
+
 /* ---------- Scrollbars ---------- */
 
 ::-webkit-scrollbar { width: 10px; }
