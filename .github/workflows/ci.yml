@@ -1,0 +1,39 @@
+name: CI
+
+# Validates pull requests and pushes to main. Deliberately separate from
+# release.yml: an advisory published in an unreachable transitive dependency
+# should block a PR for triage, never an unrelated release.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency: # a new push supersedes an in-flight run on the same ref
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*" # matches release.yml
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test # live-Graph tests self-skip here (no persisted sign-in)
+        run: npm test
+
+      - name: Audit # high+ only — moderates in the SDK's unreachable HTTP subtree should not block a PR
+        run: npm audit --audit-level=high
