@@ -342,6 +342,14 @@ button.ghost:hover { background: #4f8ef71a; }
   background: #2a3342;
 }
 
+.panel-avatar.logo {
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
 .panel-avatar.initials {
   display: flex;
   align-items: center;

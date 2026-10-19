@@ -73,7 +73,23 @@ export function drawNode(selection, { focusId, maxHop }) {
       .attr('stroke', d.id === focusId ? '#4f8ef7' : nodeStroke())
       .attr('stroke-width', 1.5);
 
-    if (d.type === 'user' && d.photoUrl) {
+    if (d.type === 'servicePrincipal' && d.photoUrl) {
+      // App logos are square marks, often on transparency: a light disc keeps
+      // them legible in either theme, and an inset unclipped square (meet,
+      // not slice) keeps their corners.
+      g.append('circle')
+        .attr('class', 'logo-plate')
+        .attr('r', r - 1.5)
+        .attr('fill', '#ffffff');
+      const s = r * 1.3;
+      g.append('image')
+        .attr('href', d.photoUrl)
+        .attr('x', -s / 2)
+        .attr('y', -s / 2)
+        .attr('width', s)
+        .attr('height', s)
+        .attr('preserveAspectRatio', 'xMidYMid meet');
+    } else if ((d.type === 'user' || d.type === 'group') && d.photoUrl) {
       g.append('image')
         .attr('href', d.photoUrl)
         .attr('x', -r)

@@ -300,13 +300,29 @@ export function registerTools(
     server,
     'get-photo',
     {
-      description: 'Photo for a user as a data: URI (48x48), or null.',
-      inputSchema: { userId: z.string() },
+      description:
+        'Photo for a user (or, with kind "group", a Microsoft 365 group) as a data: URI (48x48), or null.',
+      inputSchema: { userId: z.string(), kind: z.enum(['user', 'group']).optional() },
       _meta: uiMeta(['app'], false)
     },
-    async ({ userId }: { userId: string }) => {
-      const dataUri = await graph.getPhotoDataUri(userId);
+    async ({ userId, kind }: { userId: string; kind?: 'user' | 'group' }) => {
+      const dataUri = await graph.getPhotoDataUri(userId, kind === 'group' ? 'groups' : 'users');
       return ok(dataUri ? 'photo' : 'no photo', { dataUri });
+    }
+  );
+
+  registerAppTool(
+    server,
+    'get-app-logo',
+    {
+      description:
+        "An application's logo (its service principal's info.logoUrl, else its gallery template's logo) as a data: URI, or null.",
+      inputSchema: { servicePrincipalId: z.string() },
+      _meta: uiMeta(['app'], false)
+    },
+    async ({ servicePrincipalId }: { servicePrincipalId: string }) => {
+      const dataUri = await graph.getAppLogoDataUri(servicePrincipalId);
+      return ok(dataUri ? 'logo' : 'no logo', { dataUri });
     }
   );
 

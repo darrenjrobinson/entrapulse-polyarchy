@@ -35,9 +35,9 @@ export function showPanel(node, { isFocus }) {
   const head = document.createElement('div');
   head.className = 'panel-head';
 
-  if (node.type === 'user' && node.photoUrl) {
+  if (['user', 'group', 'servicePrincipal'].includes(node.type) && node.photoUrl) {
     const img = document.createElement('img');
-    img.className = 'panel-avatar';
+    img.className = node.type === 'servicePrincipal' ? 'panel-avatar logo' : 'panel-avatar';
     img.src = node.photoUrl;
     img.alt = '';
     head.appendChild(img);

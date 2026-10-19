@@ -4,7 +4,7 @@
 let app = null;
 let toolCalls = 0;
 const countListeners = new Set();
-const photoCache = new Map(); // userId -> Promise<string|null>
+const photoCache = new Map(); // `${kind}:${id}` -> Promise<string|null>
 
 export function setApp(a) {
   app = a;
@@ -43,12 +43,18 @@ export async function getManager(userId) {
   return manager ?? null;
 }
 
-/** data: URI or null; memoized per user. */
-export function getPhotoDataUri(userId) {
-  if (photoCache.has(userId)) return photoCache.get(userId);
-  const p = call('get-photo', { userId })
+/**
+ * Node image as a data: URI or null; memoized per kind + id. Users and
+ * Microsoft 365 groups get their photo, applications their logo.
+ */
+export function getAvatarDataUri(kind, id) {
+  const key = `${kind}:${id}`;
+  if (photoCache.has(key)) return photoCache.get(key);
+  const p = (kind === 'servicePrincipal'
+    ? call('get-app-logo', { servicePrincipalId: id })
+    : call('get-photo', { userId: id, kind }))
     .then(({ dataUri }) => dataUri ?? null)
     .catch(() => null);
-  photoCache.set(userId, p);
+  photoCache.set(key, p);
   return p;
 }
