@@ -56,7 +56,7 @@ test('tools/list exposes the expected tools', async () => {
   const { tools } = await client.listTools();
   const names = tools.map((t) => t.name).sort();
   assert.deepEqual(names, [
-    'get-auth-status', 'get-manager', 'get-photo',
+    'get-app-logo', 'get-auth-status', 'get-manager', 'get-photo',
     'polyarchy-expand', 'polyarchy-report', 'polyarchy-search',
     'set-access-token', 'visualize-identity'
   ]);

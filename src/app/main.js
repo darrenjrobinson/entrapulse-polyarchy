@@ -25,10 +25,25 @@ bridge.onToolCall((n) => ($('stat-api').textContent = `${n} tool calls`));
 
 let photoNotifyTimer = null;
 
+/** Which image a node can carry, if any. Only Microsoft 365 (Unified) groups
+ *  have photos — security/distribution groups would be a guaranteed 404, so
+ *  they're skipped; a group whose groupTypes are unknown gets one try. Roles
+ *  and attribute hubs have no image in Graph. */
+function avatarKind(node) {
+  if (node.type === 'user' || node.type === 'servicePrincipal') return node.type;
+  if (node.type === 'group') {
+    const types = node.data?.groupTypes;
+    return !Array.isArray(types) || types.includes('Unified') ? 'group' : null;
+  }
+  return null;
+}
+
+/** Lazy node image: user/M365-group photo or application logo. */
 function loadPhoto(node) {
-  if (node.type !== 'user' || node.photoUrl !== null || node.photoTried) return;
+  const kind = avatarKind(node);
+  if (!kind || node.photoUrl || node.photoTried) return;
   node.photoTried = true;
-  bridge.getPhotoDataUri(node.id).then((uri) => {
+  bridge.getAvatarDataUri(kind, node.id).then((uri) => {
     if (!uri) return;
     node.photoUrl = uri;
     clearTimeout(photoNotifyTimer);

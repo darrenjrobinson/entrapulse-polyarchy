@@ -82,6 +82,53 @@ function assertAttrPath(attr: string) {
 
 const attrSelectField = (attr: string) => attr.split('/')[0];
 
+// App logos come from two CDNs: a tenant's own branding upload lands on
+// Entra's branding CDN (servicePrincipal.info.logoUrl); gallery apps carry
+// none there and use their gallery template's logo instead. The URLs come
+// from Graph but are fetched server-side, so they're held to https + these
+// hosts (SSRF guard). Branding host families match subdomains; the gallery
+// host is exact because azureedge.net is a shared CDN domain anyone can get a
+// subdomain of. A rejected host is logged to stderr — if a tenant's logos
+// stop showing, the line names the host to add.
+const LOGO_CDN_HOST_FAMILIES = [
+  'aadcdn.microsoftonline-p.com',
+  'aadcdn.msftauthimages.net',
+  'aadcdn.msauthimages.net',
+  'aadcdn.msftauth.net',
+  'aadcdn.msauth.net'
+];
+const LOGO_CDN_EXACT_HOSTS = ['galleryapplogos1.azureedge.net'];
+const LOGO_TIMEOUT_MS = 5000;
+
+/**
+ * Raster image type from magic bytes, or null. The logo CDNs can't be trusted
+ * to label their bytes (the gallery CDN says application/octet-stream, the
+ * branding CDN a literal image/*), so the type is read from the file itself.
+ * SVG is deliberately not recognised — it can carry script.
+ */
+export function sniffImageType(b: Uint8Array): string | null {
+  const at = (i: number, ...bytes: number[]) => bytes.every((v, k) => b[i + k] === v);
+  if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png';
+  if (at(0, 0xff, 0xd8, 0xff)) return 'image/jpeg';
+  if (at(0, 0x47, 0x49, 0x46, 0x38)) return 'image/gif';
+  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp';
+  return null;
+}
+
+export function isAllowedLogoUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  const host = url.hostname.toLowerCase();
+  return url.protocol === 'https:' && (
+    LOGO_CDN_EXACT_HOSTS.includes(host) ||
+    LOGO_CDN_HOST_FAMILIES.some((h) => host === h || host.endsWith(`.${h}`))
+  );
+}
+
 const attrValueOf = (obj: any, attr: string) =>
   attr.split('/').reduce((o, k) => o?.[k], obj);
 
@@ -227,10 +274,14 @@ export class GraphClient {
     );
   }
 
-  /** 48x48 photo as a data: URI (CSP-allowed in the iframe), or null. */
-  async getPhotoDataUri(userId: string): Promise<string | null> {
+  /**
+   * 48x48 photo as a data: URI (CSP-allowed in the iframe), or null. Users by
+   * default; `groups` reads a Microsoft 365 group's photo (only Unified groups
+   * carry one — the app doesn't ask for the rest).
+   */
+  async getPhotoDataUri(id: string, entity: 'users' | 'groups' = 'users'): Promise<string | null> {
     try {
-      const res: Response | null = await this.gfetch(`/users/${userId}/photos/48x48/$value`, {
+      const res: Response | null = await this.gfetch(`/${entity}/${id}/photos/48x48/$value`, {
         raw: true,
         tolerate404: true
       });
@@ -240,6 +291,51 @@ export class GraphClient {
       return `data:${contentType};base64,${buf.toString('base64')}`;
     } catch {
       return null; // 401/403 in some tenants — the app falls back to initials
+    }
+  }
+
+  /**
+   * Where an application's logo lives: the tenant's own branding upload
+   * (servicePrincipal.info.logoUrl) wins; a gallery app has none there, so
+   * fall back to its gallery template's logoUrl. Microsoft first-party apps
+   * have neither — null, and the app keeps its icon.
+   */
+  async getAppLogoUrl(spId: string): Promise<string | null> {
+    const sp = await this.gfetch(
+      `/servicePrincipals/${spId}?$select=id,info,applicationTemplateId`,
+      { tolerate404: true }
+    );
+    if (sp?.info?.logoUrl) return sp.info.logoUrl;
+    if (!sp?.applicationTemplateId) return null;
+    const tpl = await this.gfetch(
+      `/applicationTemplates/${sp.applicationTemplateId}?$select=id,logoUrl`,
+      { tolerate404: true }
+    );
+    return tpl?.logoUrl ?? null;
+  }
+
+  /**
+   * An application's logo (see getAppLogoUrl) as a data: URI, or null when it
+   * has none or anything fails — the app keeps the app icon. The iframe CSP
+   * allows no external hosts, so the CDN bytes are inlined like photos. The
+   * CDN fetch is a plain fetch: the Graph bearer token must never leave for it.
+   */
+  async getAppLogoDataUri(spId: string): Promise<string | null> {
+    try {
+      const logoUrl = await this.getAppLogoUrl(spId);
+      if (!logoUrl) return null;
+      if (!isAllowedLogoUrl(logoUrl)) {
+        console.error(`[polyarchy] app logo host not allowlisted, skipped: ${logoUrl}`);
+        return null;
+      }
+      const res = await fetch(logoUrl, { signal: AbortSignal.timeout(LOGO_TIMEOUT_MS) });
+      if (!res.ok) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      const contentType = sniffImageType(buf);
+      if (!contentType) return null;
+      return `data:${contentType};base64,${buf.toString('base64')}`;
+    } catch {
+      return null; // 403 without Application.Read.All, CDN timeout — icon fallback
     }
   }
 

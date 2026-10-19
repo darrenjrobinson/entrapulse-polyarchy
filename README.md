@@ -180,7 +180,7 @@ filter.
 | `polyarchy-report` | Structured JSON report of a user's relationships, no UI needed: full manager chain + direct reports, group memberships (with group type and assigned/dynamic), directory roles, app assignments, core attributes — pick `dimensions` or take `all` |
 | `set-access-token` / `get-auth-status` | Token passthrough + auth diagnostics |
 
-(`get-photo` and `get-manager` also exist but are visible only to the app UI, not the model.)
+(`get-photo`, `get-app-logo` and `get-manager` also exist but are visible only to the app UI, not the model. They give user and Microsoft 365 group nodes their photos and application nodes their logos.)
 
 ## Development
 
