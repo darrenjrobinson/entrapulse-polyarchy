@@ -46,8 +46,8 @@
     "version": "node scripts/sync-server-version.mjs && git add server.json"
   },
   "dependencies": {
-    "@azure/identity": "^4.10.0",
-    "@azure/identity-cache-persistence": "^1.3.0",
+    "@azure/identity": "^4.13.3",
+    "@azure/identity-cache-persistence": "^1.3.2",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^3.25.0"
