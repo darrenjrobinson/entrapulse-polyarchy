@@ -328,7 +328,12 @@ export class GraphClient {
         console.error(`[polyarchy] app logo host not allowlisted, skipped: ${logoUrl}`);
         return null;
       }
-      const res = await fetch(logoUrl, { signal: AbortSignal.timeout(LOGO_TIMEOUT_MS) });
+      // redirect: 'error' — the allowlist vets only this URL, so a redirect
+      // (to an off-list, http or internal host) must never be followed.
+      const res = await fetch(logoUrl, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(LOGO_TIMEOUT_MS)
+      });
       if (!res.ok) return null;
       const buf = Buffer.from(await res.arrayBuffer());
       const contentType = sniffImageType(buf);

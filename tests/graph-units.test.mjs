@@ -132,6 +132,8 @@ test('getAppLogoDataUri inlines the CDN logo, fetched without the Graph token', 
       assert.equal(calls[0].url, CDN);
       assert.equal(calls[0].init?.headers, undefined);
       assert.ok(calls[0].init?.signal instanceof AbortSignal);
+      // the allowlist vets only the first URL — a redirect must never be followed
+      assert.equal(calls[0].init?.redirect, 'error');
     }
   );
 });
@@ -159,6 +161,20 @@ test('getAppLogoUrl prefers the tenant branding logo, else the gallery template 
 
   client.gfetch = route({ id: SP, info: {}, applicationTemplateId: null });
   assert.equal(await client.getAppLogoUrl(SP), null, 'first-party apps have neither');
+});
+
+test('getAppLogoDataUri is null when the CDN redirects (fetch rejects under redirect: error)', async () => {
+  const client = stubClient();
+  client.gfetch = async () => ({ id: SP, info: { logoUrl: CDN } });
+  await withFetch(
+    async () => {
+      throw new TypeError('fetch failed: unexpected redirect');
+    },
+    async (calls) => {
+      assert.equal(await client.getAppLogoDataUri(SP), null);
+      assert.equal(calls.length, 1, 'no second request to the redirect target');
+    }
+  );
 });
 
 test('getAppLogoDataUri is null for no logo, an off-allowlist host, or a non-image', async () => {
