@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { registerAppTool } from '@modelcontextprotocol/ext-apps/server';
 import { AuthManager } from './auth.js';
 import { GraphClient, reportGroup, type Delta } from './graph.js';
@@ -124,10 +124,10 @@ export function registerTools(
         'again with that userId (or use polyarchy-search first for names you suspect are common). ' +
         'Once opened the UI is interactive; ' +
         'no further action is needed unless the user asks for something new.',
-      inputSchema: {
+      inputSchema: z.object({
         search: z.string().optional().describe('Name or UPN to find and focus'),
         userId: z.string().optional().describe('Exact Entra object id to focus')
-      },
+      }),
       _meta: uiMeta(['model', 'app'], hasUi)
     },
     async ({ search, userId }: { search?: string; userId?: string }) => {
@@ -171,7 +171,7 @@ export function registerTools(
         'For nodeType group/role, returns members. For nodeType attribute pass attr+value to load the whole cohort. ' +
         'The delta is returned to the caller only — it does not update an open polyarchy canvas ' +
         '(the UI fetches its own data when the user interacts with it).',
-      inputSchema: {
+      inputSchema: z.object({
         nodeId: z.string().optional().describe('Entra object id (users, groups, roles); a UPN also works for users'),
         userId: z.string().optional().describe('Alias for nodeId'),
         nodeType: z.enum(['user', 'group', 'role', 'attribute']),
@@ -180,7 +180,7 @@ export function registerTools(
           'Attribute name or nested path, e.g. department or onPremisesExtensionAttributes/extensionAttribute9'
         ),
         value: z.string().optional().describe('Attribute value (attribute-cohort expansion)')
-      },
+      }),
       _meta: uiMeta(['model', 'app'], false)
     },
     async ({ nodeId, userId, nodeType, dimension, attr, value }: any) => {
@@ -225,7 +225,7 @@ export function registerTools(
     {
       title: 'Search people',
       description: 'Search Entra ID users by name or UPN (top 15 matches with core attributes).',
-      inputSchema: { term: z.string().min(2) },
+      inputSchema: z.object({ term: z.string().min(2) }),
       _meta: uiMeta(['model', 'app'], false)
     },
     async ({ term }: { term: string }) => {
@@ -257,14 +257,14 @@ export function registerTools(
         'Use when the user wants analysis, a summary or the underlying data — after exploring the ' +
         'polyarchy visually, or instead of opening it. With no person argument it reports on the ' +
         'signed-in user (delegated modes only). Ambiguous names return candidates — re-call with userId.',
-      inputSchema: {
+      inputSchema: z.object({
         search: z.string().optional().describe('Name or UPN to find'),
         userId: z.string().optional().describe('Exact Entra object id'),
         dimensions: z
           .array(z.enum(['org', 'groups', 'roles', 'applications', 'attributes', 'all']))
           .optional()
           .describe('Relationship categories to include (default: all)')
-      },
+      }),
       _meta: uiMeta(['model'], false)
     },
     async ({ search, userId, dimensions }: {
@@ -302,7 +302,7 @@ export function registerTools(
     {
       description:
         'Photo for a user (or, with kind "group", a Microsoft 365 group) as a data: URI (48x48), or null.',
-      inputSchema: { userId: z.string(), kind: z.enum(['user', 'group']).optional() },
+      inputSchema: z.object({ userId: z.string(), kind: z.enum(['user', 'group']).optional() }),
       _meta: uiMeta(['app'], false)
     },
     async ({ userId, kind }: { userId: string; kind?: 'user' | 'group' }) => {
@@ -317,7 +317,7 @@ export function registerTools(
     {
       description:
         "An application's logo (its service principal's info.logoUrl, else its gallery template's logo) as a data: URI, or null.",
-      inputSchema: { servicePrincipalId: z.string() },
+      inputSchema: z.object({ servicePrincipalId: z.string() }),
       _meta: uiMeta(['app'], false)
     },
     async ({ servicePrincipalId }: { servicePrincipalId: string }) => {
@@ -331,7 +331,7 @@ export function registerTools(
     'get-manager',
     {
       description: "A user's manager (core attributes), or null at the top of the chain.",
-      inputSchema: { userId: z.string() },
+      inputSchema: z.object({ userId: z.string() }),
       _meta: uiMeta(['app'], false)
     },
     async ({ userId }: { userId: string }) => {
@@ -354,10 +354,10 @@ export function registerTools(
         'Provide/refresh a Microsoft Graph bearer token when the server runs with USE_CLIENT_TOKEN=true ' +
         '(e.g. EntraPulse passing its own token for seamless SSO). expiresOn is ISO 8601; defaults to the ' +
         "token's exp claim or 1 hour.",
-      inputSchema: {
+      inputSchema: z.object({
         accessToken: z.string(),
         expiresOn: z.string().optional()
-      },
+      }),
       _meta: uiMeta(['model', 'app'], false)
     },
     async ({ accessToken, expiresOn }: { accessToken: string; expiresOn?: string }) => {
@@ -377,7 +377,7 @@ export function registerTools(
       description:
         'Current auth mode, signed-in account, client app id, decoded token scopes/roles, and token expiry ' +
         '(expiresOn + tokenExpiresInMinutes; renewal is silent) — use to diagnose 401/403s and missing consent.',
-      inputSchema: {},
+      inputSchema: z.object({}),
       _meta: uiMeta(['model', 'app'], false)
     },
     async () => {
