@@ -8,6 +8,10 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      # server, client, core and ext-apps move together; listed first because a
+      # package joins the first group it matches.
+      mcp-sdk:
+        patterns: ["@modelcontextprotocol/*"]
       dev-dependencies:
         dependency-type: development
 
