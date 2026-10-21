@@ -47,8 +47,15 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to npm
-        run: npm publish --access public
+      - name: Publish to npm # skipped if this version is already out, so a failed run can be re-run
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already on npm; skipping publish"
+          else
+            npm publish --access public
+          fi
 
       - name: Install mcp-publisher
         run: |
@@ -57,5 +64,16 @@ jobs:
       - name: Authenticate to MCP Registry
         run: ./mcp-publisher login github-oidc
 
-      - name: Publish to MCP Registry # after npm publish — the registry validates the npm version exists
-        run: ./mcp-publisher publish
+      - name: Publish to MCP Registry # the registry validates the npm version exists, and npm lags a publish
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          VERSION="$(node -p "require('./package.json').version")"
+          for attempt in $(seq 1 20); do
+            if npm view "$NAME@$VERSION" version >/dev/null 2>&1 && ./mcp-publisher publish; then
+              exit 0
+            fi
+            echo "Attempt $attempt: $NAME@$VERSION not accepted yet; retrying in 15s"
+            sleep 15
+          done
+          echo "MCP Registry publish did not succeed after 20 attempts" >&2
+          exit 1
